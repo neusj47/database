@@ -18,7 +18,7 @@ target_list = sp500.Symbol
 today = (datetime.datetime.now()).strftime('%Y-%m-%d')
 
 # 2.DB TABLE 생성
-conn = pymysql.connect(host='localhost', user='root',password='sjyoo1~', db='foreign', charset='utf8')
+conn = ''
 cursor = conn.cursor()
 sql = """
 CREATE TABLE IF NOT EXISTS stock_info (
