@@ -44,7 +44,9 @@ ni_qoq FLOAT,
 re_qoq_p FLOAT,
 oi_qoq_p FLOAT,
 ni_qoq_p FLOAT,
-last_update DATE)
+last_update DATE,
+PRIMARY KEY (last_update, code)
+)
 """
 cursor.execute(sql)
 conn.commit()
@@ -55,7 +57,10 @@ def get_fundamental(TICKER) :
     opm = df_fundamental[df_fundamental['Attribute'] == 'Operating Margin (ttm)'].iloc[0,1]
     roe = df_fundamental[df_fundamental['Attribute'] == 'Return on Equity (ttm)'].iloc[0,1]
     roa = df_fundamental[df_fundamental['Attribute'] == 'Return on Assets (ttm)'].iloc[0,1]
-    rim = float(df_fundamental[df_fundamental['Attribute'] == 'Book Value Per Share (mrq)'].iloc[0,1]) * float(roe.replace('%','')) /100 / 0.1 # 목표수익률 10%
+    if roe == 0 :
+       rim = 0
+    else :
+       rim = float(df_fundamental[df_fundamental['Attribute'] == 'Book Value Per Share (mrq)'].iloc[0,1]) * float(roe.replace('%','')) /100 / 0.1 # 목표수익률 10%
     if type(opm) == str :
         opm = float(opm.replace('%', '').replace(',', ''))
     if type(roe) == str :
@@ -138,13 +143,13 @@ gpa, re_qoq, oi_qoq, ni_qoq, re_qoq_p, oi_qoq_p, ni_qoq_p, last_update)
 for i, TICKER in enumerate(target_list):
     try:
         stock_info = tuple((sp500[sp500['Symbol'] == TICKER]).iloc[0]) + get_fundamental(TICKER)
-        sleep(5)
+        sleep(30)
         stock_info = stock_info + get_valuation(TICKER)
-        sleep(7)
+        sleep(40)
         stock_info = stock_info + get_bs_stats(TICKER)
-        sleep(3)
+        sleep(30)
         stock_info = stock_info + get_is_stats(TICKER)
-        sleep(5)
+        sleep(40)
         stock_info = [0 if type(x) != str and math.isnan(x) else x for x in stock_info]
 
         cursor.execute(sql, stock_info)
