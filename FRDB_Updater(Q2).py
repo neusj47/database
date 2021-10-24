@@ -13,7 +13,7 @@ code VARCHAR(20),
 company VARCHAR(50),
 sector VARCHAR(50),
 industry VARCHAR(50),
-amt BIGINT(20),
+net_amt BIGINT(20),
 last_update DATE,
 PRIMARY KEY (last_update, code)
 )
@@ -53,12 +53,12 @@ def get_amt_data(TICKER, sp500) :
                     transact = tr.select('.buy')
                     sign = 1
                 amt = int(transact[1].text.replace(',' , '')) * sign
-                df_temp = df_temp.append({'date':last_update,'amt':amt},ignore_index=True)
+                df_temp = df_temp.append({'date':last_update,'net_amt':amt},ignore_index=True)
     df_temp = df_temp.groupby('date').sum()[::-1].reset_index()
     df = df_temp.iloc[0:3]
     df = df.assign(code = TICKER)
     df = pd.merge(sp500,df, on = 'code', how = 'inner')
-    df = df[['code','company','sector','industry','amt','date']]
+    df = df[['code','company','sector','industry','net_amt','date']]
     df = df.rename(columns={'date':'last_update'})
     return df
 
@@ -71,7 +71,7 @@ for i, TICKER in enumerate(target_list):
                 break
             sql = """
                 insert into amt_info
-                (code, company, sector, industry, amt, last_update)
+                (code, company, sector, industry, net_amt, last_update)
                  values (%s, %s, %s, %s, %s, %s)
                 """
             cursor.execute(sql, (row[1], row[2], row[3], row[4], row[5], row[6]))
