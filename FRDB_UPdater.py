@@ -15,28 +15,32 @@ import math
 # 1.종목 리스트 추출
 sp500 = fdr.StockListing('S&P500')
 target_list = sp500.Symbol
+target_list = sp500.Symbol[250:]
 today = (datetime.datetime.now()).strftime('%Y-%m-%d')
 
 # 2.DB TABLE 생성
-conn = ''
+conn = pymysql.connect(host='localhost', user='root',password='sjyoo1~', db='foreign', charset='utf8')
 cursor = conn.cursor()
 sql = """
 CREATE TABLE IF NOT EXISTS stock_info (
 code VARCHAR(20),
 company VARCHAR(50),
-sector VARCHAR(40),
+sector VARCHAR(50),
 industry VARCHAR(50),
 opm FLOAT,
 roe FLOAT,
 roa FLOAT,
-rim BIGINT(20),
-mktval BIGINT(20),
+rim BIGINT(30),
+re_yoy FLOAT,
+earning_yoy FLOAT,
+mktval BIGINT(30),
 per FLOAT,
 pegr FLOAT,
 pbr FLOAT,
 psr FLOAT,
 evebitda FLOAT,
 ncav FLOAT,
+leverage FLOAT,
 gpa FLOAT,
 re_qoq FLOAT,
 oi_qoq FLOAT,
@@ -57,17 +61,23 @@ def get_fundamental(TICKER) :
     opm = df_fundamental[df_fundamental['Attribute'] == 'Operating Margin (ttm)'].iloc[0,1]
     roe = df_fundamental[df_fundamental['Attribute'] == 'Return on Equity (ttm)'].iloc[0,1]
     roa = df_fundamental[df_fundamental['Attribute'] == 'Return on Assets (ttm)'].iloc[0,1]
+    re_yoy = df_fundamental[df_fundamental['Attribute'] == 'Quarterly Revenue Growth (yoy)'].iloc[0,1]
+    earning_yoy = df_fundamental[df_fundamental['Attribute'] == 'Quarterly Earnings Growth (yoy)'].iloc[0,1]
     if roe == 0 :
        rim = 0
     else :
-       rim = float(df_fundamental[df_fundamental['Attribute'] == 'Book Value Per Share (mrq)'].iloc[0,1]) * float(roe.replace('%','')) /100 / 0.1 # 목표수익률 10%
+       rim = round(( float(df_fundamental[df_fundamental['Attribute'] == 'Book Value Per Share (mrq)'].iloc[0,1]) * float(roe.replace('%','')) /100 / 0.1),1) # 목표수익률 10%
     if type(opm) == str :
         opm = float(opm.replace('%', '').replace(',', ''))
     if type(roe) == str :
         roe = float(roe.replace('%', '').replace(',', ''))
     if type(roa) == str :
         roa = float(roa.replace('%', '').replace(',', ''))
-    return opm, roe, roa, rim
+    if type(re_yoy) == str :
+        re_yoy = float(re_yoy.replace('%', '').replace(',', ''))
+    if type(earning_yoy) == str :
+        earning_yoy = float(earning_yoy.replace('%', '').replace(',', ''))
+    return opm, roe, roa, rim, re_yoy, earning_yoy
 
 def get_valuation(TICKER) :
     df_valuation = si.get_stats_valuation(TICKER).fillna(0)
@@ -111,8 +121,9 @@ def get_bs_stats(TICKER) :
     df_balance = si.get_balance_sheet(TICKER, yearly=False).fillna(0)
     df_income = si.get_income_statement(TICKER, yearly=False).fillna(0)
     ncav = df_balance[df_balance.index=='totalCurrentAssets'].iloc[0,0] - df_balance[df_balance.index=='totalLiab'].iloc[0,0]
+    leverage = round(df_balance[df_balance.index=='totalCurrentAssets'].iloc[0,0] / df_balance[df_balance.index=='totalStockholderEquity'].iloc[0,0],2)
     gpa = round(df_income[df_income.index=='grossProfit'].iloc[0,0] / (1/2 * (df_balance[df_balance.index=='totalAssets'].iloc[0,0] + df_balance[df_balance.index=='totalAssets'].iloc[0,3])),2)
-    return ncav, gpa
+    return ncav, leverage, gpa
 
 def get_is_stats(TICKER):
     df_income = si.get_income_statement(TICKER, yearly=False).loc[['totalRevenue', 'operatingIncome', 'netIncome']].fillna(0)
@@ -136,20 +147,20 @@ def get_is_stats(TICKER):
 # 4.DB 입력
 sql = """
 insert into stock_info
-(code, company, sector, industry, opm, roe, roa, rim, mktval, per, pegr, pbr, psr, evebitda, ncav, 
-gpa, re_qoq, oi_qoq, ni_qoq, re_qoq_p, oi_qoq_p, ni_qoq_p, last_update)
- values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+(code, company, sector, industry, opm, roe, roa, rim, re_yoy, earning_yoy, mktval, per, pegr, pbr, psr, evebitda, ncav, leverage, gpa,
+re_qoq, oi_qoq, ni_qoq, re_qoq_p, oi_qoq_p, ni_qoq_p, last_update)
+ values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 for i, TICKER in enumerate(target_list):
     try:
         stock_info = tuple((sp500[sp500['Symbol'] == TICKER]).iloc[0]) + get_fundamental(TICKER)
-        sleep(30)
+        sleep(33)
         stock_info = stock_info + get_valuation(TICKER)
-        sleep(40)
+        sleep(42)
         stock_info = stock_info + get_bs_stats(TICKER)
-        sleep(30)
+        sleep(61)
         stock_info = stock_info + get_is_stats(TICKER)
-        sleep(40)
+        sleep(34)
         stock_info = [0 if type(x) != str and math.isnan(x) else x for x in stock_info]
 
         cursor.execute(sql, stock_info)
