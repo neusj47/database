@@ -51,7 +51,6 @@ def download_stats(code) :
         if response.status_code == 200:
             file.write(response.content)
 
-
 def get_stock_stats(code ,t) :
     df_income = pd.read_excel(file_path +"{TICKER}_INCOME.xlsx".format(TICKER=code), index_col=0).fillna(0)
     df_income = df_income.T
@@ -81,8 +80,8 @@ INSERT INTO stats_info
 """
 for i, ticker in enumerate(target_list):
     try :
-        download_stats(ticker)
-        stock_stats = get_stock_stats(ticker,0)
+        # download_stats(ticker)
+        stock_stats = get_stock_stats(ticker,5)
         cursor.execute(sql, stock_stats)
         conn.commit()
 

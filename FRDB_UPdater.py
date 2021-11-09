@@ -15,11 +15,10 @@ import math
 # 1.종목 리스트 추출
 sp500 = fdr.StockListing('S&P500')
 target_list = sp500.Symbol
-target_list = sp500.Symbol[250:]
 today = (datetime.datetime.now()).strftime('%Y-%m-%d')
 
 # 2.DB TABLE 생성
-conn = pymysql.connect(host='localhost', user='root',password='sjyoo1~', db='foreign', charset='utf8')
+conn = ''
 cursor = conn.cursor()
 sql = """
 CREATE TABLE IF NOT EXISTS stock_info (
