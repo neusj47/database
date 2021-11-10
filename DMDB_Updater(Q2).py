@@ -8,16 +8,16 @@ import dart_fss as dart
 import pandas as pd
 import requests
 
-file_path = "C:/Users/ysj/PycharmProjects/database/dmfs/"
-api_key= ''
+file_path = ''
+api_key= 'b9b49cf014cf7d692a8f768248a7c1b0f6c330d5'
 dart.set_api_key(api_key=api_key)
 
-start_date = '20191201'
-date = '20211108'
+start_date = '20181201'
+stddate = '20211108'
 period = 'quarter' # annual, semiannual, quarter
 
 # 0. 대상 ticker 선정
-def ticker_info(date):
+def ticker_info(stddate):
     sector = {1010: '에너지',
               1510: '소재',
               2010: '자본재',
@@ -49,7 +49,7 @@ def ticker_info(date):
     df = pd.DataFrame(columns=['code', 'name', 'sector_l', 'sector_m', 'mktval', 'wgt'])
     for i, sec_code in enumerate(sector.keys()):
         response = requests.get(
-            'http://www.wiseindex.com/Index/GetIndexComponets?ceil_yn=0&''dt=' + date + '&sec_cd=G' + str(sec_code))
+            'http://www.wiseindex.com/Index/GetIndexComponets?ceil_yn=0&''dt=' + stddate + '&sec_cd=G' + str(sec_code))
         if (response.status_code == 200):
             json_list = response.json()
             for json in json_list['list']:
@@ -64,7 +64,7 @@ def ticker_info(date):
                      'wgt': wgt}, ignore_index=True)
     return df
 
-ticker = ticker_info(date)
+ticker = ticker_info(stddate)
 
 # 1. 재무제표 가져오기
 def download_fin_stats(start_date, ticker, period):
@@ -74,7 +74,26 @@ def download_fin_stats(start_date, ticker, period):
 
 
 # 2. 재무제표 가공하기
+def get_fstats(ticker):
+    fs = dart.get_corp_list().find_by_stock_code(code).extract_fs(bgn_de=start_date, report_tp=[period])
+    bs = fs.show('bs')
+    bs_cols = ['ifrs-full_CurrentAssets', 'ifrs-full_Assets', 'ifrs-full_CurrentLiabilities', 'ifrs-full_Liabilities',
+               'ifrs-full_RetainedEarnings', 'ifrs-full_Equity']
+    bs_stats = bs[bs[
+        '[D210000] Statement of financial position, current/non-current - Consolidated financial statements (Unit: KRW)'].concept_id.isin(
+        bs_cols)].reset_index(drop=True)
+    bs_stats_temp = bs_stats.iloc[0, 7:len(bs_stats.columns)].reset_index()
+    bs_period = bs_stats_temp['level_0']
+    df = pd.DataFrame(index=bs_period, columns=bs_cols)
+    df = df.reset_index()
+    df['TICKER'] = ticker.code[0]
+    df[bs_cols[0]] = bs_stats_temp[0]
 
+    for i in range(1, len(bs_cols) - 1):
+        bs_stats_temp = bs_stats.iloc[i, 7:len(bs_stats.columns)].reset_index()
+        df['TICKER'] = ticker.code[i]
+        df[bs_cols[i]] = bs_stats_temp[i]
+    return df
 
 
 
@@ -82,5 +101,6 @@ def download_fin_stats(start_date, ticker, period):
 for i, code in enumerate(ticker.code) :
     try :
         download_fin_stats(start_date, code, period)
+        print(i, ' 번 째 입력완료 : ', code)
     except Exception as e:
             print(i, ' 번 째 오류 발생 : ', code, ' 오류:', str(e))
