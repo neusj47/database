@@ -8,8 +8,8 @@ import dart_fss as dart
 import pandas as pd
 import requests
 
-file_path = ''
-api_key= 'b9b49cf014cf7d692a8f768248a7c1b0f6c330d5'
+file_path = "C:/Users/ysj/PycharmProjects/database/dmfs/"
+api_key= ''
 dart.set_api_key(api_key=api_key)
 
 start_date = '20181201'
