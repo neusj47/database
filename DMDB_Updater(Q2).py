@@ -66,41 +66,76 @@ def ticker_info(stddate):
 
 ticker = ticker_info(stddate)
 
-# 1. 재무제표 가져오기
+# 1. 재무제표 크롤링
 def download_fin_stats(start_date, ticker, period):
     fs  = dart.get_corp_list().find_by_stock_code(ticker).extract_fs(bgn_de=start_date, report_tp = [period])
     fs.save(ticker + '.xlsx', path = file_path)
     return
 
+code = ticker.code[1]
 
 # 2. 재무제표 가공하기
-def get_fstats(ticker):
+
+# def get_bstats(code):
+#     fs = dart.get_corp_list().find_by_stock_code(code).extract_fs(bgn_de=start_date, report_tp=[period])
+#     b = fs.show('bs')
+#     b_cols = ['ifrs-full_CurrentAssets', 'ifrs-full_Assets', 'ifrs-full_CurrentLiabilities', 'ifrs-full_Liabilities',
+#                'ifrs-full_RetainedEarnings', 'ifrs-full_Equity']
+#     b_stats = b[b[
+#         '[D210000] Statement of financial position, current/non-current - Consolidated financial statements (Unit: KRW)'].concept_id.isin(b_cols)].reset_index(drop=True)
+#     temp = b_stats.iloc[0, 7:len(b_stats.columns)].reset_index()
+#     df_b = pd.DataFrame(index=temp['level_0'], columns=b_cols).reset_index()
+#     df_b[b_cols[0]] = temp[0]
+#     for i in range(1, len(b_cols)):
+#         temp = b_stats.iloc[i, 7:len(b_stats.columns)].reset_index()
+#         df_b[b_cols[i]] = temp[i]
+#     df_b['code'] = code
+#     return df_b
+
+def get_bstats(code) :
     fs = dart.get_corp_list().find_by_stock_code(code).extract_fs(bgn_de=start_date, report_tp=[period])
-    bs = fs.show('bs')
-    bs_cols = ['ifrs-full_CurrentAssets', 'ifrs-full_Assets', 'ifrs-full_CurrentLiabilities', 'ifrs-full_Liabilities',
-               'ifrs-full_RetainedEarnings', 'ifrs-full_Equity']
-    bs_stats = bs[bs[
-        '[D210000] Statement of financial position, current/non-current - Consolidated financial statements (Unit: KRW)'].concept_id.isin(
-        bs_cols)].reset_index(drop=True)
-    bs_stats_temp = bs_stats.iloc[0, 7:len(bs_stats.columns)].reset_index()
-    bs_period = bs_stats_temp['level_0']
-    df = pd.DataFrame(index=bs_period, columns=bs_cols)
-    df = df.reset_index()
-    df['TICKER'] = ticker.code[0]
-    df[bs_cols[0]] = bs_stats_temp[0]
+    b = fs.show('bs')
+    b_cols = ['ifrs-full_CurrentAssets','ifrs-full_Inventories','ifrs-full_Assets','ifrs-full_CurrentLiabilities',
+            'ifrs-full_Liabilities', 'ifrs-full_RetainedEarnings', 'ifrs-full_Equity']
+    entrance = '[D210000] Statement of financial position, current/non-current - Consolidated financial statements (Unit: KRW)'
+    b_stats = b[b[entrance].concept_id.isin(b_cols)].reset_index(drop=True)
+    b_list = b_stats[entrance].concept_id.to_list()
+    temp = b_stats.iloc[0,7:len(b_stats.columns)].reset_index()
+    df_b = pd.DataFrame(index=temp['level_0'], columns=b_cols).reset_index()
+    for i in range(0, len(b_cols)):
+        if b_cols[i] not in b_list :
+            df_b[b_cols[i]] = 0
+        else :
+            temp = b_stats[b_stats[entrance].concept_id == b_cols[i]].iloc[0,7:len(b_stats.columns)].reset_index()
+            df_b[b_cols[i]] = temp[i]
+    df_b = df_b.dropna(axis=0)
+    return df_b
 
-    for i in range(1, len(bs_cols) - 1):
-        bs_stats_temp = bs_stats.iloc[i, 7:len(bs_stats.columns)].reset_index()
-        df['TICKER'] = ticker.code[i]
-        df[bs_cols[i]] = bs_stats_temp[i]
-    return df
-
+def get_istats(code) :
+    fs = dart.get_corp_list().find_by_stock_code(code).extract_fs(bgn_de=start_date, report_tp=[period])
+    i = fs.show('cis')
+    i_cols = ['ifrs-full_Revenue', 'ifrs-full_GrossProfit','dart_OperatingIncomeLoss','ifrs-full_ProfitLoss',
+              'ifrs-full_ComprehensiveIncome', 'ifrs-full_BasicEarningsLossPerShare']
+    tg_col = '[D431410] Statement of comprehensive income, by function of expense - Consolidated financial statements (Unit: KRW)'
+    i_stats = i[i[tg_col].concept_id.isin(i_cols)].reset_index(drop=True)
+    i_list = i_stats[tg_col].concept_id.to_list()
+    temp = i_stats.iloc[0, 7:len(i_stats.columns)].reset_index()
+    df_i = pd.DataFrame(index=temp['level_0'], columns=i_cols).reset_index()
+    for i in range(0, len(i_cols)):
+        if i_cols[i] not in i_list :
+            df_i[i_cols[i]] = 0
+        else :
+            temp = i_stats[i_stats[tg_col].concept_id == i_cols[i]].iloc[0,7:len(i_stats.columns)].reset_index()
+            df_i[i_cols[i]] = temp[i]
+    df_i = df_i.dropna(axis=0)
+    return df_i
 
 
 # 3. DB 입력하기
 for i, code in enumerate(ticker.code) :
     try :
-        download_fin_stats(start_date, code, period)
+        df_b = get_bstats(code)
+        df_i = get_istats(code)
         print(i, ' 번 째 입력완료 : ', code)
     except Exception as e:
             print(i, ' 번 째 오류 발생 : ', code, ' 오류:', str(e))
