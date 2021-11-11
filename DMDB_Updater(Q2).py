@@ -75,29 +75,11 @@ def download_fin_stats(start_date, ticker, period):
 code = ticker.code[1]
 
 # 2. 재무제표 가공하기
-
-# def get_bstats(code):
-#     fs = dart.get_corp_list().find_by_stock_code(code).extract_fs(bgn_de=start_date, report_tp=[period])
-#     b = fs.show('bs')
-#     b_cols = ['ifrs-full_CurrentAssets', 'ifrs-full_Assets', 'ifrs-full_CurrentLiabilities', 'ifrs-full_Liabilities',
-#                'ifrs-full_RetainedEarnings', 'ifrs-full_Equity']
-#     b_stats = b[b[
-#         '[D210000] Statement of financial position, current/non-current - Consolidated financial statements (Unit: KRW)'].concept_id.isin(b_cols)].reset_index(drop=True)
-#     temp = b_stats.iloc[0, 7:len(b_stats.columns)].reset_index()
-#     df_b = pd.DataFrame(index=temp['level_0'], columns=b_cols).reset_index()
-#     df_b[b_cols[0]] = temp[0]
-#     for i in range(1, len(b_cols)):
-#         temp = b_stats.iloc[i, 7:len(b_stats.columns)].reset_index()
-#         df_b[b_cols[i]] = temp[i]
-#     df_b['code'] = code
-#     return df_b
-
-def get_bstats(code) :
-    fs = dart.get_corp_list().find_by_stock_code(code).extract_fs(bgn_de=start_date, report_tp=[period])
+def get_bstats(fs) :
     b = fs.show('bs')
+    entrance = '[D210000] Statement of financial position, current/non-current - Consolidated financial statements (Unit: KRW)'
     b_cols = ['ifrs-full_CurrentAssets','ifrs-full_Inventories','ifrs-full_Assets','ifrs-full_CurrentLiabilities',
             'ifrs-full_Liabilities', 'ifrs-full_RetainedEarnings', 'ifrs-full_Equity']
-    entrance = '[D210000] Statement of financial position, current/non-current - Consolidated financial statements (Unit: KRW)'
     b_stats = b[b[entrance].concept_id.isin(b_cols)].reset_index(drop=True)
     b_list = b_stats[entrance].concept_id.to_list()
     temp = b_stats.iloc[0,7:len(b_stats.columns)].reset_index()
@@ -106,36 +88,88 @@ def get_bstats(code) :
         if b_cols[i] not in b_list :
             df_b[b_cols[i]] = 0
         else :
-            temp = b_stats[b_stats[entrance].concept_id == b_cols[i]].iloc[0,7:len(b_stats.columns)].reset_index()
-            df_b[b_cols[i]] = temp[i]
-    df_b = df_b.dropna(axis=0)
+            df_b[b_cols[i]] = b_stats[b_stats[entrance].concept_id == b_cols[i]].iloc[0,7:len(b_stats.columns)].reset_index()[i]
+    df_b = df_b.dropna(axis = 0)
+    df_b = df_b.rename(
+        columns={'level_0': 'last_update', 'ifrs-full_CurrentAssets': 'CA', 'ifrs-full_Inventories': 'INV',
+                 'ifrs-full_Assets': 'TA', 'ifrs-full_CurrentLiabilities': 'CL',
+                 'ifrs-full_Liabilities': 'TL', 'ifrs-full_RetainedEarnings': 'RE', 'ifrs-full_Equity': 'EQ'
+                 })
     return df_b
 
-def get_istats(code) :
-    fs = dart.get_corp_list().find_by_stock_code(code).extract_fs(bgn_de=start_date, report_tp=[period])
+def get_istats(fs) :
     i = fs.show('cis')
+    entrance = '[D431410] Statement of comprehensive income, by function of expense - Consolidated financial statements (Unit: KRW)'
     i_cols = ['ifrs-full_Revenue', 'ifrs-full_GrossProfit','dart_OperatingIncomeLoss','ifrs-full_ProfitLoss',
               'ifrs-full_ComprehensiveIncome', 'ifrs-full_BasicEarningsLossPerShare']
-    tg_col = '[D431410] Statement of comprehensive income, by function of expense - Consolidated financial statements (Unit: KRW)'
-    i_stats = i[i[tg_col].concept_id.isin(i_cols)].reset_index(drop=True)
-    i_list = i_stats[tg_col].concept_id.to_list()
+    i_stats = i[i[entrance].concept_id.isin(i_cols)].reset_index(drop=True)
+    i_list = i_stats[entrance].concept_id.to_list()
     temp = i_stats.iloc[0, 7:len(i_stats.columns)].reset_index()
     df_i = pd.DataFrame(index=temp['level_0'], columns=i_cols).reset_index()
     for i in range(0, len(i_cols)):
         if i_cols[i] not in i_list :
             df_i[i_cols[i]] = 0
         else :
-            temp = i_stats[i_stats[tg_col].concept_id == i_cols[i]].iloc[0,7:len(i_stats.columns)].reset_index()
-            df_i[i_cols[i]] = temp[i]
-    df_i = df_i.dropna(axis=0)
+            df_i[i_cols[i]]  = i_stats[i_stats[entrance].concept_id == i_cols[i]].iloc[0,7:len(i_stats.columns)].reset_index()[i]
+    df_i = df_i.dropna(axis = 0)
+    df_i = df_i.rename(
+        columns={'ifrs-full_Revenue': 'REV', 'ifrs-full_GrossProfit': 'GP', 'dart_OperatingIncomeLoss': 'OI',
+                 'ifrs-full_ProfitLoss': 'NI', 'ifrs-full_ComprehensiveIncome': 'CI',
+                 'ifrs-full_BasicEarningsLossPerShare': 'EPS'
+                 })
     return df_i
 
+def get_cstats(fs) :
+    c = fs.show('cf')
+    c_cols = ['ifrs-full_CashFlowsFromUsedInOperatingActivities', 'ifrs-full_CashFlowsFromUsedInInvestingActivities',
+              'ifrs-full_ProceedsFromSalesOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities',
+              'ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities',
+              'ifrs-full_CashFlowsFromUsedInFinancingActivities']
+    entrance = '[D520000] Statement of cash flows, indirect method - Consolidated financial statements (Unit: KRW)'
+    c_stats = c[c[entrance].concept_id.isin(c_cols)].reset_index(drop=True)
+    c_list = c_stats[entrance].concept_id.to_list()
+    temp = c_stats.iloc[0, 7:len(c_stats.columns)].reset_index()
+    df_c = pd.DataFrame(index=temp['level_0'], columns=c_cols).reset_index()
+    for i in range(0, len(c_cols)):
+        if c_cols[i] not in c_list :
+            df_c[c_cols[i]] = 0
+        else :
+            temp = c_stats[c_stats[entrance].concept_id == c_cols[i]].iloc[0,7:len(c_stats.columns)].reset_index()
+            df_c[c_cols[i]] = temp[i]
+    df_c = df_c.dropna(axis = 0)
+    df_c = df_c.rename(columns={'ifrs-full_CashFlowsFromUsedInOperatingActivities': 'CFO',
+                                'ifrs-full_CashFlowsFromUsedInInvestingActivities': 'CFI',
+                                'ifrs-full_ProceedsFromSalesOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities': 'CPX_IN',
+                                'ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities': 'CPX_OUT',
+                                'ifrs-full_CashFlowsFromUsedInFinancingActivities': 'CFF'})
+    return df_c
 
 # 3. DB 입력하기
 for i, code in enumerate(ticker.code) :
     try :
-        df_b = get_bstats(code)
-        df_i = get_istats(code)
+        fs = dart.get_corp_list().find_by_stock_code(code).extract_fs(bgn_de=start_date, report_tp=[period])
+        df_b = get_bstats(fs)
+
+        df_i = get_istats(fs)
+        df_i['last_update'] = ''
+        for i in range(0, len(df_i)):
+            if int(df_i.level_0[i][9:]) - int(df_i.level_0[i][:8]) > 300:
+                df_i = df_i.drop(index=i)
+        df_i = df_i.reset_index(drop=True)
+        for i in range(0, len(df_i)):
+            df_i['last_update'][i] = df_i.level_0[i][9:]
+        df_i = df_i[['last_update', 'REV', 'GP', 'OI', 'NI', 'CI', 'EPS']]
+
+        df_c = get_istats(fs)
+        df_c['last_update'] = ''
+        for i in range(0, len(df_c)):
+            if int(df_c.level_0[i][9:]) - int(df_c.level_0[i][:8]) > 300:
+                df_c = df_c.drop(index=i)
+        df_c = df_c.reset_index(drop=True)
+        for i in range(0, len(df_c)):
+            df_c['last_update'][i] = df_c.level_0[i][9:]
+        df_c = df_c[['last_update', 'CFO', 'CFI', 'CPX_IN', 'CPX_OUT', 'CFF']]
+
         print(i, ' 번 째 입력완료 : ', code)
     except Exception as e:
             print(i, ' 번 째 오류 발생 : ', code, ' 오류:', str(e))
