@@ -9,6 +9,8 @@ import pandas as pd
 import requests
 from datetime import datetime
 
+pd.set_option('mode.chained_assignment',  None)
+
 file_path = "C:/Users/ysj/PycharmProjects/database/dmfs/"
 api_key= ''
 dart.set_api_key(api_key=api_key)
@@ -116,13 +118,13 @@ def get_istats(fs) :
                  'ifrs-full_ProfitLoss': 'NI', 'ifrs-full_ComprehensiveIncome': 'CI',
                  'ifrs-full_BasicEarningsLossPerShare': 'EPS'
                  })
-    df_i['last_update'] = '0'
+    df_i['last_update'] = datetime.today()
     for i in range(0, len(df_i)):
         if int(df_i.level_0[i][9:]) - int(df_i.level_0[i][:8]) > 300:
             df_i = df_i.drop(index=i)
     df_i = df_i.reset_index(drop=True)
     for i in range(0, len(df_i)):
-        df_i.last_update.loc[i] = datetime.strptime(df_i.level_0.loc[i][9:], '%Y%m%d').strftime('%Y%m%d')
+        df_i.last_update.loc[i] = datetime.strptime(df_i.level_0[i][9:], '%Y%m%d').strftime('%Y%m%d')
     df_i = df_i[['last_update', 'REV', 'GP', 'OI', 'NI', 'CI', 'EPS']]
     df_i['GPR'] = df_i['GP'] / df_i['REV']
     df_i['OIR'] = df_i['OI'] / df_i['REV']
@@ -151,13 +153,13 @@ def get_cstats(fs) :
                                 'ifrs-full_ProceedsFromSalesOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities': 'CPX_IN',
                                 'ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities': 'CPX_OUT',
                                 'ifrs-full_CashFlowsFromUsedInFinancingActivities': 'CFF'})
-    df_c['last_update'] = '0'
+    df_c['last_update'] =  datetime.today()
     for i in range(0, len(df_c)):
         if int(df_c.level_0[i][9:]) - int(df_c.level_0[i][:8]) > 300:
             df_c = df_c.drop(index=i)
     df_c = df_c.reset_index(drop=True)
     for i in range(0, len(df_c)):
-        df_c.last_update.loc[i] = datetime.strptime(df_c.level_0.loc[i][9:], '%Y%m%d').strftime('%Y%m%d')
+        df_c.last_update.loc[i] = datetime.strptime(df_c.level_0[i][9:], '%Y%m%d').strftime('%Y%m%d')
     df_c = df_c[['last_update', 'CFO', 'CFI', 'CPX_IN', 'CPX_OUT', 'CFF']]
     df_c['FCF'] = df_c['CFO'] + df_c['CPX_IN'] - df_c['CPX_OUT']
 
