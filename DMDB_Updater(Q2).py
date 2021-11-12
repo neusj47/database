@@ -116,7 +116,7 @@ def get_istats(fs) :
                  'ifrs-full_ProfitLoss': 'NI', 'ifrs-full_ComprehensiveIncome': 'CI',
                  'ifrs-full_BasicEarningsLossPerShare': 'EPS'
                  })
-    df_c.last_update = '0'
+    df_i.last_update = '0'
     for i in range(0, len(df_i)):
         if int(df_i.level_0[i][9:]) - int(df_i.level_0[i][:8]) > 300:
             df_i = df_i.drop(index=i)
