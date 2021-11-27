@@ -8,8 +8,47 @@ import dart_fss as dart
 import pandas as pd
 import requests
 from datetime import datetime
+import pymysql
 
 pd.set_option('mode.chained_assignment',  None)
+conn = pymysql.connect(host='localhost', user='root',password='sjyoo1~', db='domestic', charset='utf8')
+cursor = conn.cursor()
+sql = """
+CREATE TABLE IF NOT EXISTS finstat_info (
+code VARCHAR(20),
+last_update date,
+CA BIGINT(30),
+INV BigInt(30),
+ASS BIGINT(30),
+CL BIGINT(30),
+LI BIGINT(30),
+RE BIGINT(30),
+EQ BIGINT(30),
+REV BIGINT(30),
+GP BIGINT(30),
+OI BIGINT(30),
+NI BIGINT(30),
+EPS BIGINT(30),
+CFO BIGINT(30),
+CFI BIGINT(30),
+CPXIN BIGINT(30),
+CPXOUT BIGINT(30),
+CFF BIGINT(30),
+FCF BIGINT(30),
+CLA FLOAT,
+REINV FLOAT,
+LIEQ FLOAT,
+ROA FLOAT,
+ROE FLOAT,
+GPR FLOAT,
+OIR FLOAT,
+NIR FLOAT,
+period VARCHAR(10),
+PRIMARY KEY (code, last_update, period)
+)
+"""
+cursor.execute(sql)
+conn.commit()
 
 file_path = "C:/Users/ysj/PycharmProjects/database/dmfs/"
 api_key= ''
@@ -17,7 +56,7 @@ dart.set_api_key(api_key=api_key)
 
 start_date = '20181201'
 stddate = '20211108'
-period = 'quarter' # annual, semiannual, quarter
+period = 'annual' # annual, semiannual, quarter
 
 # 0. 대상 ticker 선정
 def ticker_info(stddate):
@@ -69,6 +108,9 @@ def ticker_info(stddate):
 
 ticker = ticker_info(stddate)
 
+code = '005930'
+
+
 # 1. 재무제표 크롤링
 def download_fin_stats(start_date, ticker, period):
     fs  = dart.get_corp_list().find_by_stock_code(ticker).extract_fs(bgn_de=start_date, report_tp = [period])
@@ -93,42 +135,34 @@ def get_bstats(fs) :
     df_b = df_b.dropna(axis = 0)
     df_b = df_b.rename(
         columns={'level_0': 'last_update', 'ifrs-full_CurrentAssets': 'CA', 'ifrs-full_Inventories': 'INV',
-                 'ifrs-full_Assets': 'TA', 'ifrs-full_CurrentLiabilities': 'CL',
-                 'ifrs-full_Liabilities': 'TL', 'ifrs-full_RetainedEarnings': 'RE', 'ifrs-full_Equity': 'EQ'
+                 'ifrs-full_Assets': 'ASS', 'ifrs-full_CurrentLiabilities': 'CL',
+                 'ifrs-full_Liabilities': 'LI', 'ifrs-full_RetainedEarnings': 'RE', 'ifrs-full_Equity': 'EQ'
                  })
     return df_b
 
 def get_istats(fs) :
-    i = fs.show('cis')
+    i = fs.show('is')
     entrance = i.columns[0][0]
-    i_cols = ['ifrs-full_Revenue', 'ifrs-full_GrossProfit','dart_OperatingIncomeLoss','ifrs-full_ProfitLoss',
-              'ifrs-full_ComprehensiveIncome', 'ifrs-full_BasicEarningsLossPerShare']
+    i_cols = ['ifrs-full_Revenue', 'ifrs-full_GrossProfit', 'dart_OperatingIncomeLoss', 'ifrs-full_ProfitLoss',
+              'ifrs-full_BasicEarningsLossPerShare']
     i_stats = i[i[entrance].concept_id.isin(i_cols)].reset_index(drop=True)
     i_list = i_stats[entrance].concept_id.to_list()
-    temp = i_stats.iloc[0, 7:len(i_stats.columns)].reset_index()
+    temp = i_stats.iloc[0, 6:len(i_stats.columns)].reset_index()
     df_i = pd.DataFrame(index=temp['level_0'], columns=i_cols).reset_index()
     for i in range(0, len(i_cols)):
-        if i_cols[i] not in i_list :
+        if i_cols[i] not in i_list:
             df_i[i_cols[i]] = 0
-        else :
-            df_i[i_cols[i]]  = i_stats[i_stats[entrance].concept_id == i_cols[i]].iloc[0,7:len(i_stats.columns)].reset_index().iloc[:,2]
-    df_i = df_i.dropna(axis = 0)
+        else:
+            df_i[i_cols[i]] = i_stats[i_stats[entrance].concept_id == i_cols[i]].iloc[0,6:len(i_stats.columns)].reset_index().iloc[:,2]
+    df_i = df_i.dropna(axis=0)
     df_i = df_i.rename(
         columns={'ifrs-full_Revenue': 'REV', 'ifrs-full_GrossProfit': 'GP', 'dart_OperatingIncomeLoss': 'OI',
-                 'ifrs-full_ProfitLoss': 'NI', 'ifrs-full_ComprehensiveIncome': 'CI',
-                 'ifrs-full_BasicEarningsLossPerShare': 'EPS'
+                 'ifrs-full_ProfitLoss': 'NI', 'ifrs-full_BasicEarningsLossPerShare': 'EPS'
                  })
     df_i['last_update'] = datetime.today()
     for i in range(0, len(df_i)):
-        if int(df_i.level_0[i][9:]) - int(df_i.level_0[i][:8]) > 300:
-            df_i = df_i.drop(index=i)
-    df_i = df_i.reset_index(drop=True)
-    for i in range(0, len(df_i)):
         df_i.last_update.loc[i] = datetime.strptime(df_i.level_0[i][9:], '%Y%m%d').strftime('%Y%m%d')
-    df_i = df_i[['last_update', 'REV', 'GP', 'OI', 'NI', 'CI', 'EPS']]
-    df_i['GPR'] = df_i['GP'] / df_i['REV']
-    df_i['OIR'] = df_i['OI'] / df_i['REV']
-    df_i['NIR'] = df_i['NI'] / df_i['REV']
+    df_i = df_i[['last_update', 'REV', 'GP', 'OI', 'NI', 'EPS']]
     return df_i
 
 def get_cstats(fs) :
@@ -143,39 +177,55 @@ def get_cstats(fs) :
     temp = c_stats.iloc[0, 7:len(c_stats.columns)].reset_index()
     df_c = pd.DataFrame(index=temp['level_0'], columns=c_cols).reset_index()
     for i in range(0, len(c_cols)):
-        if c_cols[i] not in c_list :
+        if c_cols[i] not in c_list:
             df_c[c_cols[i]] = 0
-        else :
-            df_c[c_cols[i]] = c_stats[c_stats[entrance].concept_id == c_cols[i]].iloc[0,7:len(c_stats.columns)].reset_index().iloc[:,2]
-    df_c = df_c.dropna(axis = 0)
+        else:
+            df_c[c_cols[i]] = c_stats[c_stats[entrance].concept_id == c_cols[i]].iloc[0,
+                              7:len(c_stats.columns)].reset_index().iloc[:, 2]
+    df_c = df_c.dropna(axis=0)
     df_c = df_c.rename(columns={'ifrs-full_CashFlowsFromUsedInOperatingActivities': 'CFO',
                                 'ifrs-full_CashFlowsFromUsedInInvestingActivities': 'CFI',
-                                'ifrs-full_ProceedsFromSalesOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities': 'CPX_IN',
-                                'ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities': 'CPX_OUT',
+                                'ifrs-full_ProceedsFromSalesOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities': 'CPXIN',
+                                'ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities': 'CPXOUT',
                                 'ifrs-full_CashFlowsFromUsedInFinancingActivities': 'CFF'})
-    df_c['last_update'] =  datetime.today()
-    for i in range(0, len(df_c)):
-        if int(df_c.level_0[i][9:]) - int(df_c.level_0[i][:8]) > 300:
-            df_c = df_c.drop(index=i)
-    df_c = df_c.reset_index(drop=True)
+    df_c['last_update'] = datetime.today()
     for i in range(0, len(df_c)):
         df_c.last_update.loc[i] = datetime.strptime(df_c.level_0[i][9:], '%Y%m%d').strftime('%Y%m%d')
-    df_c = df_c[['last_update', 'CFO', 'CFI', 'CPX_IN', 'CPX_OUT', 'CFF']]
-    df_c['FCF'] = df_c['CFO'] + df_c['CPX_IN'] - df_c['CPX_OUT']
-
+    df_c = df_c[['last_update', 'CFO', 'CFI', 'CPXIN', 'CPXOUT', 'CFF']]
+    df_c['FCF'] = df_c['CFO'] + df_c['CPXIN'] - df_c['CPXOUT']
     return df_c
+
 # 3. DB 입력하기
+
 for i, code in enumerate(ticker.code) :
     try :
 
         fs = dart.get_corp_list().find_by_stock_code(code).extract_fs(bgn_de=start_date, report_tp=[period])
-
         df_b = get_bstats(fs)
-
         df_i = get_istats(fs)
+        df_c = get_cstats(fs)
+        df_all = pd.merge(df_b, df_i, on='last_update', how='left')
+        df_all = pd.merge(df_all, df_c, on='last_update', how='left')
+        df_all['CLA'] = round((df_all['CL'] / df_all['CA']).astype(float), 2)
+        df_all['REINV'] = round((df_all['REV'] / df_all['INV']).astype(float), 2)
+        df_all['LIEQ'] = round((df_all['LI'] / df_all['EQ']).astype(float), 2)
+        df_all['ROA'] = round((df_all['NI'] / df_all['ASS']).astype(float), 2)
+        df_all['ROE'] = round((df_all['NI'] / df_all['EQ']).astype(float), 2)
+        df_all['GPR'] = round((df_i['GP'] / df_i['REV']).astype(float), 2)
+        df_all['OIR'] = round((df_i['OI'] / df_i['REV']).astype(float), 2)
+        df_all['NIR'] = round((df_i['NI'] / df_i['REV']).astype(float), 2)
+        df_all['period'] = 'YOY'
+        df_all['code'] = code
 
-        df_c = get_istats(fs)
-
+        for row in df_all.itertuples():
+            sql = """
+            insert into finstat_info
+            (code, last_update, CA, INV, ASS, CL, LI, RE, EQ, REV, GP, OI, NI, EPS, CFO, CFI, CPXIN, CPXOUT, CFF, FCF, CLA, REINV, LIEQ, ROA, ROE, GPR, OIR, NIR, period)
+             values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(sql, (row[29], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[12],row[13], row[14],
+                                 row[15], row[16], row[17],row[18], row[19], row[20], row[21], row[22], row[23], row[24], row[25], row[26], row[27], row[28]))
+            conn.commit()
         print(i, ' 번 째 산출 완료 : ', code)
     except Exception as e:
-            print(i, ' 번 째 오류 발생 : ', code, ' 오류:', str(e))
+        print(i, ' 번 째 오류 발생 : ', code, ' 오류:', str(e))
