@@ -7,11 +7,12 @@
 import dart_fss as dart
 import pandas as pd
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import pymysql
+from pykrx import stock
 
 pd.set_option('mode.chained_assignment',  None)
-conn = pymysql.connect(host='localhost', user='root',password='sjyoo1~', db='domestic', charset='utf8')
+conn = ''
 cursor = conn.cursor()
 sql = """
 CREATE TABLE IF NOT EXISTS finstat_info (
@@ -51,11 +52,13 @@ cursor.execute(sql)
 conn.commit()
 
 file_path = "C:/Users/ysj/PycharmProjects/database/dmfs/"
-api_key= ''
+api_key= 'b9b49cf014cf7d692a8f768248a7c1b0f6c330d5'
 dart.set_api_key(api_key=api_key)
 
-start_date = '20181201'
-stddate = '20211108'
+start_date = '20171230'
+# stddate = datetime.now().strftime('%Y%m%d')
+
+stddate = stock.get_nearest_business_day_in_a_week(datetime.strftime(datetime.strptime(datetime.now().strftime('%Y%m%d'), "%Y%m%d") - timedelta(days=1), "%Y%m%d"))
 period = 'annual' # annual, semiannual, quarter
 
 # 0. 대상 ticker 선정
@@ -105,10 +108,7 @@ def ticker_info(stddate):
                     {'code': code, 'name': name, 'sector_l': sector_l, 'sector_m': sector_m, 'mktval': mktval,
                      'wgt': wgt}, ignore_index=True)
     return df
-
 ticker = ticker_info(stddate)
-
-code = '005930'
 
 
 # 1. 재무제표 크롤링
@@ -125,13 +125,16 @@ def get_bstats(fs) :
             'ifrs-full_Liabilities', 'ifrs-full_RetainedEarnings', 'ifrs-full_Equity']
     b_stats = b[b[entrance].concept_id.isin(b_cols)].reset_index(drop=True)
     b_list = b_stats[entrance].concept_id.to_list()
-    temp = b_stats.iloc[0,7:len(b_stats.columns)].reset_index()
+    col =0
+    while b_stats.columns[col][1][0] != '연결재무제표':
+        col = col+1
+    temp = b_stats.iloc[0,col:len(b_stats.columns)].reset_index()
     df_b = pd.DataFrame(index=temp['level_0'], columns=b_cols).reset_index()
     for i in range(0, len(b_cols)):
         if b_cols[i] not in b_list :
             df_b[b_cols[i]] = 0
         else :
-            df_b[b_cols[i]] = b_stats[b_stats[entrance].concept_id == b_cols[i]].iloc[0,7:len(b_stats.columns)].reset_index().iloc[:,2]
+            df_b[b_cols[i]] = b_stats[b_stats[entrance].concept_id == b_cols[i]].iloc[0,col:len(b_stats.columns)].reset_index().iloc[:,2]
     df_b = df_b.dropna(axis = 0)
     df_b = df_b.rename(
         columns={'level_0': 'last_update', 'ifrs-full_CurrentAssets': 'CA', 'ifrs-full_Inventories': 'INV',
@@ -141,19 +144,22 @@ def get_bstats(fs) :
     return df_b
 
 def get_istats(fs) :
-    i = fs.show('is')
+    i = fs.show('cis')
     entrance = i.columns[0][0]
     i_cols = ['ifrs-full_Revenue', 'ifrs-full_GrossProfit', 'dart_OperatingIncomeLoss', 'ifrs-full_ProfitLoss',
               'ifrs-full_BasicEarningsLossPerShare']
     i_stats = i[i[entrance].concept_id.isin(i_cols)].reset_index(drop=True)
     i_list = i_stats[entrance].concept_id.to_list()
-    temp = i_stats.iloc[0, 6:len(i_stats.columns)].reset_index()
+    col =0
+    while i_stats.columns[col][1][0] != '연결재무제표':
+        col = col+1
+    temp = i_stats.iloc[0, col:len(i_stats.columns)].reset_index()
     df_i = pd.DataFrame(index=temp['level_0'], columns=i_cols).reset_index()
     for i in range(0, len(i_cols)):
         if i_cols[i] not in i_list:
             df_i[i_cols[i]] = 0
         else:
-            df_i[i_cols[i]] = i_stats[i_stats[entrance].concept_id == i_cols[i]].iloc[0,6:len(i_stats.columns)].reset_index().iloc[:,2]
+            df_i[i_cols[i]] = i_stats[i_stats[entrance].concept_id == i_cols[i]].iloc[0,col:len(i_stats.columns)].reset_index().iloc[:,2]
     df_i = df_i.dropna(axis=0)
     df_i = df_i.rename(
         columns={'ifrs-full_Revenue': 'REV', 'ifrs-full_GrossProfit': 'GP', 'dart_OperatingIncomeLoss': 'OI',
@@ -174,14 +180,16 @@ def get_cstats(fs) :
     entrance = c.columns[0][0]
     c_stats = c[c[entrance].concept_id.isin(c_cols)].reset_index(drop=True)
     c_list = c_stats[entrance].concept_id.to_list()
-    temp = c_stats.iloc[0, 7:len(c_stats.columns)].reset_index()
+    col =0
+    while c_stats.columns[col][1][0] != '연결재무제표':
+        col = col+1
+    temp = c_stats.iloc[0, col:len(c_stats.columns)].reset_index()
     df_c = pd.DataFrame(index=temp['level_0'], columns=c_cols).reset_index()
     for i in range(0, len(c_cols)):
         if c_cols[i] not in c_list:
             df_c[c_cols[i]] = 0
         else:
-            df_c[c_cols[i]] = c_stats[c_stats[entrance].concept_id == c_cols[i]].iloc[0,
-                              7:len(c_stats.columns)].reset_index().iloc[:, 2]
+            df_c[c_cols[i]] = c_stats[c_stats[entrance].concept_id == c_cols[i]].iloc[0,col:len(c_stats.columns)].reset_index().iloc[:, 2]
     df_c = df_c.dropna(axis=0)
     df_c = df_c.rename(columns={'ifrs-full_CashFlowsFromUsedInOperatingActivities': 'CFO',
                                 'ifrs-full_CashFlowsFromUsedInInvestingActivities': 'CFI',
@@ -226,6 +234,6 @@ for i, code in enumerate(ticker.code) :
             cursor.execute(sql, (row[29], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[12],row[13], row[14],
                                  row[15], row[16], row[17],row[18], row[19], row[20], row[21], row[22], row[23], row[24], row[25], row[26], row[27], row[28]))
             conn.commit()
-        print(i, ' 번 째 산출 완료 : ', code)
+        # print(i, ' 번 째 산출 완료 : ', code)
     except Exception as e:
         print(i, ' 번 째 오류 발생 : ', code, ' 오류:', str(e))
