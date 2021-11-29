@@ -10,6 +10,7 @@ import requests
 from datetime import datetime, timedelta
 import pymysql
 from pykrx import stock
+import numpy as np
 
 pd.set_option('mode.chained_assignment',  None)
 conn = ''
@@ -224,6 +225,7 @@ for i, code in enumerate(ticker.code) :
         df_all['NIR'] = round((df_i['NI'] / df_i['REV']).astype(float), 2)
         df_all['period'] = 'YOY'
         df_all['code'] = code
+        df_all = df_all.replace([np.inf, -np.inf], np.nan).fillna(0)
 
         for row in df_all.itertuples():
             sql = """
